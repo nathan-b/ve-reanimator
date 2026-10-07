@@ -1,9 +1,10 @@
-require 'zip'
 require 'fileutils'
+require 'save_builder'
 
 # Stands in for VoidExpanse in tests. A background thread waits for messages
 # and, on request, writes a save file into a slot directory the way the game
-# would: a zip archive containing a single `data` entry.
+# would. world.data is a realistic save (see SaveBuilder); +death+ makes it one
+# with an empty inventory and cargo hold, as after the player dies.
 class FakeGame
   def initialize(saves_dir)
     @saves_dir = saves_dir
@@ -13,8 +14,8 @@ class FakeGame
   end
 
   # Ask the game thread to save the given file in the given slot.
-  def trigger(slot: 'slot_0', file: 'world.data')
-    @queue << [:save, slot, file]
+  def trigger(slot: 'slot_0', file: 'world.data', death: false)
+    @queue << [:save, slot, file, death]
     self
   end
 
@@ -28,21 +29,19 @@ class FakeGame
 
   def run
     while (msg = @queue.pop) != :stop
-      _, slot, file = msg
-      write_save(slot, file)
+      _, slot, file, death = msg
+      write_save(slot, file, death)
     end
   end
 
-  def write_save(slot, file)
+  def write_save(slot, file, death)
     dir = File.join(@saves_dir, slot)
     FileUtils.mkdir_p(dir)
     path = File.join(dir, file)
     @counter += 1
     if file == 'world.data'
-      Zip::OutputStream.open(path) { |z|
-        z.put_next_entry('data')
-        z.write(%({"save_number":#{@counter}}))
-      }
+      items = death ? 0 : 3
+      SaveBuilder.write_world_data(path, items: items, cargo: 0, save_number: @counter)
     else
       File.write(path, "save #{@counter}")
     end
