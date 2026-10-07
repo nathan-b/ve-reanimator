@@ -1,0 +1,20 @@
+#!/usr/bin/env ruby
+# Watches a VoidExpanse saves directory and archives each slot on every save.
+
+$LOAD_PATH.unshift File.expand_path('../lib', __dir__)
+require 'reanimator/app'
+
+saves_dir = ARGV.shift
+if saves_dir.nil? || !File.directory?(saves_dir)
+  warn "Usage: #{$0} <VoidExpanse Saves directory>"
+  exit 1
+end
+
+app = Reanimator::App.new(saves_dir)
+app.start
+puts "Watching #{saves_dir}; archiving to #{Reanimator::App::DEFAULT_ARCHIVE_DIR}"
+
+queue = Queue.new
+%w[INT TERM].each { |sig| trap(sig) { queue << sig } }
+queue.pop
+app.stop

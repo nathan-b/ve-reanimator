@@ -117,6 +117,11 @@ is 0 (detection would never fire) or if `ship_loss` or `permadeath` is non-zero 
 - **Ship changes.** Inventories are keyed by ship ID, so always look up the current `ShipID`; do not cache it.
 - **Missing keys.** If `inventories[ShipID]` is absent (fresh game or an unexpected format), treat it as
   "unknown", not "death". The detector should not move saves to the death directory on a parse failure.
+- **How the game writes saves.** Confirmed by the author: the game overwrites the files inside an existing slot
+  directory; it does not delete and recreate the directory. The file watcher (Listen/inotify) can miss
+  `world.data` when a *new* directory is created and files are written into it immediately (seen in 2 of 6
+  trials), so only the first save into a brand-new slot is at risk; the next autosave is picked up.
+  Not worth a polling fallback unless this proves to matter in practice.
 - **Mid-write reads.** The game writes `world.data` in place. A watcher can see a partial file, so retry or
   wait for the file to settle if the zip or JSON fails to parse.
 
