@@ -1,18 +1,28 @@
 #!/usr/bin/env ruby
-# Watches a VoidExpanse saves directory and archives each slot on every save.
+# Watches the VoidExpanse saves directory and archives each slot on every save.
+#
+# Usage: ve-reanimator [Saves directory]
+#
+# Settings come from ve-reanimator.yaml (current directory, or
+# ~/.config/ve-reanimator). The saves directory is, in order of preference: the
+# command-line argument, saves_dir from the config, or autodiscovery.
 
 $LOAD_PATH.unshift File.expand_path('../lib', __dir__)
 require 'reanimator/app'
 
-saves_dir = ARGV.shift
-if saves_dir.nil? || !File.directory?(saves_dir)
-  warn "Usage: #{$0} <VoidExpanse Saves directory>"
+begin
+  config = Reanimator::Config.load
+  app = Reanimator::App.build(config, saves_dir: ARGV.shift)
+rescue Reanimator::Config::Error, Reanimator::App::NoSavesDirectory => e
+  warn "ve-reanimator: #{e.message}"
   exit 1
 end
 
-app = Reanimator::App.new(saves_dir)
 app.start
-puts "Watching #{saves_dir}; archiving to #{Reanimator::App::DEFAULT_ARCHIVE_DIR}"
+puts "Config:     #{config.source || '(none found, using defaults)'}"
+puts "Watching:   #{app.saves_dir}"
+puts "Archiving:  #{config.archive_dir} (keeping #{config.max_saves})"
+puts "Death saves: #{config.death_dir} (keeping #{config.max_death_saves})"
 
 queue = Queue.new
 %w[INT TERM].each { |sig| trap(sig) { queue << sig } }

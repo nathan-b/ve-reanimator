@@ -61,4 +61,12 @@ class WatcherTest < Minitest::Test
 
     assert_nil next_event(0.5)
   end
+
+  def test_ignores_world_data_in_directories_that_are_not_game_slots
+    %w[backup_slot_0 slot_0_old slot notes].each { |dir| @game.trigger(slot: dir) }
+    @game.trigger(slot: 'slot_12')
+
+    assert_equal File.join(@saves, 'slot_12', 'world.data'), next_event
+    assert_nil next_event(0.5), 'only slot_N directories should have produced an event'
+  end
 end
