@@ -7,7 +7,7 @@ $LOAD_PATH.unshift File.expand_path('support', __dir__)
 # would then run without any ever firing. (A missing display just skips the
 # window tests; see main_window_test.rb.)
 begin
-  require 'gtk3'
+  require 'reanimator/gtk'
 rescue LoadError, StandardError
   nil
 end

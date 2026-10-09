@@ -1,4 +1,4 @@
-require 'gtk3'
+require 'reanimator/gtk'
 require 'reanimator/archive_store'
 
 module Reanimator

@@ -1,4 +1,4 @@
-require 'gtk3'
+require 'reanimator/gtk'
 require 'reanimator/app'
 require 'reanimator/archive_store'
 require 'reanimator/config'

@@ -10,7 +10,7 @@ require 'reanimator/archive_store'
 # (GTK refuses to start without one) but nothing appears on it.
 GUI_ERROR =
   begin
-    require 'gtk3'
+    require 'reanimator/gtk'
     nil
   rescue LoadError, StandardError => e
     e
