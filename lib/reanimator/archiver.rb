@@ -1,10 +1,20 @@
 require 'fileutils'
+require 'reanimator/slot'
+require 'time'
 
 module Reanimator
   # Copies a save slot directory into a timestamped directory under the archive
   # and keeps only the newest +max_saves+ archives of each slot.
   class Archiver
     TIMESTAMP_FORMAT = '%Y%m%d_%H%M%S'
+    ARCHIVE_NAME = /\A(?<slot>#{Slot::PATTERN})_(?<stamp>\d{8}_\d{6})\z/
+
+    # Split an archive directory name like slot_0_20261006_180629 into its slot
+    # ("slot_0") and time. Returns nil for names that are not archives.
+    def self.parse_name(name)
+      m = ARCHIVE_NAME.match(name)
+      m && [m[:slot], Time.strptime(m[:stamp], TIMESTAMP_FORMAT)]
+    end
 
     def initialize(archive_dir:, max_saves: 3, clock: -> { Time.now })
       @archive_dir = archive_dir
@@ -21,6 +31,20 @@ module Reanimator
       publish(slot_dir, dest)
       prune(slot)
       dest
+    end
+
+    # True if some archive of the same slot already holds a world.data identical
+    # to the one at +world_data_path+.
+    def holds?(world_data_path)
+      slot = File.basename(File.dirname(world_data_path))
+      return false unless File.directory?(@archive_dir)
+
+      Dir.children(@archive_dir).any? { |name|
+        next false unless self.class.parse_name(name)&.first == slot
+
+        archived = File.join(@archive_dir, name, 'world.data')
+        File.file?(archived) && FileUtils.compare_file(archived, world_data_path)
+      }
     end
 
     private

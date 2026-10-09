@@ -3,6 +3,7 @@ require 'reanimator/archiver'
 require 'reanimator/config'
 require 'reanimator/death_detector'
 require 'reanimator/save_locator'
+require 'reanimator/slot'
 require 'reanimator/watcher'
 
 module Reanimator
@@ -43,17 +44,38 @@ module Reanimator
 
     def start
       @watcher.start
+      @watching = true
     end
 
     def stop
       @watcher.stop
+      @watching = false
+    end
+
+    def watching?
+      @watching == true
+    end
+
+    # Archive every slot as it is now, as if the game had just saved it. Returns
+    # the paths of the archives made; slots that are unreadable or already
+    # archived are skipped.
+    def backup_now
+      slots = Dir.children(@saves_dir).select { |name| Slot.name?(name) }.sort
+      slots.map { |slot| File.join(@saves_dir, slot, 'world.data') }
+           .select { |world_data| File.file?(world_data) }
+           .filter_map { |world_data| handle_save(world_data) }
     end
 
     private
 
+    # Archive the slot of +world_data+ unless it is unreadable or already
+    # archived (which also keeps a restored save from being archived again).
+    # Returns the new archive's path, or nil if nothing was archived.
     def handle_save(world_data)
+      return nil if @primary.holds?(world_data) || @death.holds?(world_data)
+
       death = death_save?(world_data)
-      return if death.nil?
+      return nil if death.nil?
 
       (death ? @death : @primary).archive(world_data)
     end

@@ -1,5 +1,6 @@
 require_relative 'test_helper'
 require 'fake_game'
+require 'reanimator/archive_store'
 require 'reanimator/config'
 require 'logger'
 require 'stringio'
@@ -187,5 +188,73 @@ class AppTest < Minitest::Test
   ensure
     game&.stop
     app&.stop
+  end
+
+  # --- not archiving what is already archived ---
+
+  def test_restoring_an_archive_does_not_create_a_new_archive
+    (1..3).each { |n| @game.trigger; wait_until("archive #{n}") { archive_names.include?(archive_name(n)) } }
+    store = Reanimator::ArchiveStore.new(archive_dir: @archive, death_dir: File.join(@archive, 'death'))
+    sleep 1.1 # a restore made within moments of the last save is swallowed by the file watcher itself
+
+    store.restore(store.entries(:good).last, @saves) # the oldest
+    sleep 1.2 # long enough for the watcher to report it and the app to retry if it were going to
+
+    assert_equal [archive_name(1), archive_name(2), archive_name(3)], archive_names
+  end
+
+  # --- watching state and manual backups ---
+
+  def test_reports_whether_it_is_watching
+    assert @app.watching?, 'the app from setup is started'
+    @app.stop
+    refute @app.watching?
+  end
+
+  def idle_app(saves)
+    Reanimator::App.new(saves, archive_dir: File.join(@root, 'manual_archive'), clock: ticking_clock,
+                               logger: Logger.new(@log), retry_delay: 0.01)
+  end
+
+  def write_slot(saves, slot, **doc)
+    FileUtils.mkdir_p(File.join(saves, slot))
+    SaveBuilder.write_world_data(File.join(saves, slot, 'world.data'), **doc)
+  end
+
+  def test_backup_now_archives_every_slot_and_sorts_death_saves_from_normal_ones
+    saves = File.join(@root, 'manual_saves')
+    write_slot(saves, 'slot_0', items: 3)
+    write_slot(saves, 'slot_1', items: 0, cargo: 0)
+    FileUtils.mkdir_p(File.join(saves, 'backup_slot_0')) # not a slot
+    File.write(File.join(saves, 'backup_slot_0', 'world.data'), 'ignored')
+
+    created = idle_app(saves).backup_now
+
+    assert_equal 2, created.size
+    assert_equal [File.join(@root, 'manual_archive', archive_name(1))], created.grep_v(/death/)
+    assert_equal [File.join(@root, 'manual_archive', 'death', archive_name(2).sub('slot_0', 'slot_1'))], created.grep(/death/)
+  end
+
+  def test_backup_now_skips_saves_that_are_already_archived
+    saves = File.join(@root, 'manual_saves')
+    write_slot(saves, 'slot_0')
+    write_slot(saves, 'slot_1', items: 0, cargo: 0) # a death save
+    app = idle_app(saves)
+    assert_equal 2, app.backup_now.size
+
+    assert_empty app.backup_now
+  end
+
+  def test_backup_now_skips_unreadable_slots_but_still_backs_up_the_others
+    saves = File.join(@root, 'manual_saves')
+    FileUtils.mkdir_p(File.join(saves, 'slot_0'))
+    File.write(File.join(saves, 'slot_0', 'world.data'), 'not a zip')
+    write_slot(saves, 'slot_1')
+
+    created = idle_app(saves).backup_now
+
+    assert_equal 1, created.size
+    assert_match(/slot_1/, created.first)
+    assert_match(/slot_0/, @log.string)
   end
 end

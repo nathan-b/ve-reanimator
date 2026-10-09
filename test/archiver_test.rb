@@ -97,4 +97,43 @@ class ArchiverTest < Minitest::Test
     assert_empty seen_during_copy.grep(/\Aslot_0_\d{8}_\d{6}\z/)
     assert_equal %w[slot_0_20261006_180629], archive_names, 'no temporary directories should be left behind'
   end
+
+  # --- recognising saves that are already archived ---
+
+  def test_holds_a_save_after_archiving_it
+    arch = archiver
+    refute arch.holds?(world_data)
+
+    arch.archive(world_data)
+
+    assert arch.holds?(world_data)
+  end
+
+  def test_does_not_hold_a_save_whose_world_data_has_changed
+    arch = archiver
+    arch.archive(world_data)
+    File.binwrite(world_data, File.binread(world_data) + 'x')
+
+    refute arch.holds?(world_data)
+  end
+
+  def test_holds_a_save_if_any_archive_of_the_slot_matches
+    arch = archiver
+    arch.archive(world_data)
+    original = File.binread(world_data)
+    @now += 60
+    File.binwrite(world_data, 'a newer save')
+    arch.archive(world_data)
+    File.binwrite(world_data, original)
+
+    assert arch.holds?(world_data), 'restoring an older archive must be recognised'
+  end
+
+  def test_archives_of_other_slots_do_not_count
+    FileUtils.cp_r(SLOT_FIXTURE, File.join(@saves, 'slot_1'))
+    arch = archiver
+    arch.archive(world_data('slot_0'))
+
+    refute arch.holds?(world_data('slot_1'))
+  end
 end
