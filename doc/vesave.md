@@ -14,7 +14,8 @@ Samples used (all pilot `electronomancer`, ship ID 17814):
 
 ## TL;DR
 
-A save is a **death save** when the player's ship inventory container has no items **and** no cargo:
+A save is a **death save** when the player's ship inventory container has no items **and** no cargo, **or**
+when the player's ship has no structure left (see "Saving on the death screen" below):
 
 ```ruby
 j      = JSON.parse(json)
@@ -85,7 +86,7 @@ Compared `before_death` and `after_death` for the player:
 | Equipment container (321) | **Unchanged**. Equipped gear survives. |
 | Station storages (Type 2: 323, 330, 399, …) | Unchanged. Ore stored at stations survives death. |
 | `ShipID` | Unchanged (`ship_loss: 0`) |
-| `Game.gameEndResult`, `IsGameOverSent` | Unchanged. There is no explicit "dead" flag. |
+| `Game.gameEndResult`, `IsGameOverSent` | Unchanged. There is no explicit "dead" flag; see "Saving on the death screen" for the ship-structure sign. |
 
 `PlayersManager.GeneratorArgs` holds the death-penalty settings. The game has three penalty modes:
 
@@ -102,6 +103,29 @@ neither designed nor tested for them.
 
 Optional hardening for a later phase: read `GeneratorArgs` and warn at startup if `inventory_loss`
 is 0 (detection would never fire) or if `ship_loss` or `permadeath` is non-zero (unsupported mode).
+
+## Saving on the death screen
+
+The penalty is not applied when the player dies, but when the saved game is next loaded or the player respawns.
+Choosing "save and exit" on the "you have died" screen therefore writes a save whose inventory, cargo and money
+are all still intact (`examples/dead_before_respawn/`, made 2026-10-10). Loading it drops the player on the death
+screen again, and only the following save has the empty inventory.
+
+What the game does record is the ship's hull. The player ship (`ShipPlayer`, ID `ShipID`) is in
+`ObjectsManager.dictionary`, which is an array of `{key, value}` groups; the ship is the entry `ShipID` in some
+group's `value.dictionary`. Its `currentValues.structure` is the hull integrity:
+
+| Save | `structure` | items | money |
+|---|---|---|---|
+| Ordinary autosaves | 3698, 4657, 4000, 1350 | 2 to 16 | |
+| Saved on the death screen | **0.0** | 7 (intact) | 11751 (intact) |
+| Next save, after loading it and respawning | 5000.0 (full), ship moved to a station | 0 | 10575 (-10%) |
+
+Other fields that differ (`isShieldUp` false, `shield` low, `LastHitByShipId`) are not reliable: a living ship
+can have no shield. `structure <= 0` is the sign used. It matched every save available (9 saves, one of them
+dead); a living ship was never at 0. Only one dead-ship sample exists, so the rule rests on that one save
+plus the observation that structure reaching 0 is what destroys a ship. If the ship object or its
+`structure` is missing, the detector ignores this sign and judges by the inventory alone.
 
 ## Open questions and edge cases
 

@@ -59,6 +59,12 @@ class DeathDetectorTest < Minitest::Test
     refute Reanimator::DeathDetector.death_save?(File.expand_path('slot_0/world.data', __dir__))
   end
 
+  # Saved by choosing "save and exit" right after dying: the ship is destroyed but the
+  # game has not respawned the player yet, so inventory and money are still intact.
+  def test_save_made_while_dead_is_a_death_save_though_the_inventory_is_still_full
+    assert Reanimator::DeathDetector.death_save?(real_save('dead_before_respawn'))
+  end
+
   # --- synthetic saves ---
 
   def test_empty_inventory_and_cargo_is_a_death_save
@@ -71,6 +77,33 @@ class DeathDetectorTest < Minitest::Test
 
   def test_cargo_without_items_is_not_a_death_save
     refute Detector.death_save?(save(items: 0, cargo: 1))
+  end
+
+  def test_destroyed_ship_is_a_death_save_even_with_items_and_cargo
+    assert Detector.death_save?(save(items: 3, cargo: 2, structure: 0.0))
+  end
+
+  def test_ship_with_hull_left_is_not_a_death_save
+    refute Detector.death_save?(save(items: 3, structure: 0.5))
+  end
+
+  def test_only_the_players_ship_counts_not_other_destroyed_ships
+    # the builder's other ship has no structure left and is not the player's
+    refute Detector.death_save?(save(items: 3, structure: 4000.0))
+  end
+
+  def test_without_a_ship_object_the_inventory_alone_decides
+    refute Detector.death_save?(save(items: 3, structure: nil))
+    assert Detector.death_save?(save(items: 0, structure: nil))
+  end
+
+  def test_a_ship_without_a_structure_value_is_judged_by_its_inventory
+    path = save_from_document { |doc|
+      ship = doc['ObjectsManager']['dictionary'].last['value']['dictionary'][SaveBuilder::SHIP_ID.to_s]
+      ship['currentValues'].delete('structure')
+    }
+
+    refute Detector.death_save?(path)
   end
 
   def test_slots_that_point_at_item_zero_count_as_empty

@@ -9,15 +9,16 @@ module SaveBuilder
 
   # The save document as a Hash. +items+ is the number of items in the ship
   # inventory and +cargo+ the number of trade-goods types in the cargo hold.
-  # +save_number+ makes otherwise identical saves differ.
-  def self.document(items: 3, cargo: 0, save_number: 0)
+  # +save_number+ makes otherwise identical saves differ. +structure+ is the
+  # player ship's hull integrity (0 means destroyed); nil leaves the ship object out.
+  def self.document(items: 3, cargo: 0, save_number: 0, structure: 4000.0)
     slots = { '$id' => '9001' }
     items.times { |i| slots[i.to_s] = 5000 + i }
     cargo_items = { '$id' => '9002' }
     cargo.times { |i|
       cargo_items["ore_#{i}"] = { 'Count' => 10 + i, 'XmlCargoTypeId' => "ore_#{i}" }
     }
-    {
+    doc = {
       '$id' => '1',
       'SaveNumber' => save_number,
       'ItemsModule' => {
@@ -35,6 +36,21 @@ module SaveBuilder
         '$id' => '6',
         'playersCollection' => { '$id' => '7', 'testpilot' => { '$id' => '8', 'ShipID' => SHIP_ID, 'money' => 1000 } }
       }
+    }
+    doc['ObjectsManager'] = objects_manager(structure) if structure
+    doc
+  end
+
+  # Objects are grouped by kind; the player's ship is one entry in one group.
+  def self.objects_manager(structure)
+    ship = { '$id' => '13', 'currentValues' => { '$id' => '14', 'structure' => structure } }
+    other = { '$id' => '15', 'currentValues' => { '$id' => '16', 'structure' => 0.0 } }
+    {
+      '$id' => '10',
+      'dictionary' => [
+        { 'key' => 11, 'value' => { '$id' => '17', 'dictionary' => { '$id' => '18', '99' => other } } },
+        { 'key' => 1, 'value' => { '$id' => '11', 'dictionary' => { '$id' => '12', SHIP_ID.to_s => ship } } }
+      ]
     }
   end
 

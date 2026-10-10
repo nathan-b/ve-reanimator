@@ -4,7 +4,9 @@ require 'save_builder'
 # Stands in for VoidExpanse in tests. A background thread waits for messages
 # and, on request, writes a save file into a slot directory the way the game
 # would. world.data is a realistic save (see SaveBuilder); +death+ makes it one
-# with an empty inventory and cargo hold, as after the player dies.
+# with an empty inventory and cargo hold, as after the player dies. +death:
+# :before_respawn+ is the earlier moment, when the ship is destroyed but the game
+# has not yet emptied the inventory ("save and exit" on the death screen).
 class FakeGame
   def initialize(saves_dir)
     @saves_dir = saves_dir
@@ -40,8 +42,9 @@ class FakeGame
     path = File.join(dir, file)
     @counter += 1
     if file == 'world.data'
-      items = death ? 0 : 3
-      SaveBuilder.write_world_data(path, items: items, cargo: 0, save_number: @counter)
+      items = death == true ? 0 : 3
+      structure = death == :before_respawn ? 0.0 : 4000.0
+      SaveBuilder.write_world_data(path, items: items, cargo: 0, save_number: @counter, structure: structure)
     else
       File.write(path, "save #{@counter}")
     end

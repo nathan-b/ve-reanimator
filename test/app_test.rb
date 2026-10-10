@@ -91,6 +91,15 @@ class AppTest < Minitest::Test
     assert_equal [archive_name(1)], primary_names
   end
 
+  def test_a_save_made_on_the_death_screen_goes_to_the_death_directory_though_the_inventory_is_full
+    @game.trigger
+    wait_until('normal save archived') { primary_names == [archive_name(1)] }
+    @game.trigger(death: :before_respawn)
+
+    wait_until('death save archived') { death_names == [archive_name(2)] }
+    assert_equal [archive_name(1)], primary_names
+  end
+
   def test_saves_go_back_to_the_primary_directory_once_the_player_has_items_again
     @game.trigger
     wait_until('save 1') { primary_names == [archive_name(1)] }
